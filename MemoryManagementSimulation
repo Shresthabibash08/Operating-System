@@ -2,56 +2,60 @@
 
 #define MAX 20
 
-// Display the current contents of memory frames
+// Display current memory frames
 void displayFrames(int frames[], int frameSize)
 {
     printf("Frames: ");
     for (int i = 0; i < frameSize; i++)
-    {
-        if (frames[i] == -1)
-            printf("- ");
-        else
-            printf("%d ", frames[i]);
-    }
+        (frames[i] == -1) ? printf("- ") : printf("%d ", frames[i]);
     printf("\n");
 }
 
 // FIFO Page Replacement
 void FIFO(int pages[], int n, int frameSize)
 {
-    int frames[MAX];
-    int front = 0;
+    int frames[MAX], front = 0, hits = 0, faults = 0;
 
     for (int i = 0; i < frameSize; i++)
         frames[i] = -1;
 
-    printf("\n----- FIFO Page Replacement -----\n");
+    printf("\n===== FIFO =====\n");
 
     for (int i = 0; i < n; i++)
     {
         int found = 0;
 
         for (int j = 0; j < frameSize; j++)
-        {
             if (frames[j] == pages[i])
-            {
                 found = 1;
-                break;
-            }
+
+        if (found)
+        {
+            hits++;
+            printf("Page %d -> Hit\n", pages[i]);
+        }
+        else
+        {
+            faults++;
+            frames[front] = pages[i];
+            front = (front + 1) % frameSize;
+            printf("Page %d -> Fault\n", pages[i]);
         }
 
-        if (!found)
-            frames[front] = pages[i], front = (front + 1) % frameSize;
-
-        printf("Page %d -> %s\n", pages[i], found ? "Hit" : "Fault");
         displayFrames(frames, frameSize);
     }
+
+    printf("\nHits       : %d", hits);
+    printf("\nFaults     : %d", faults);
+    printf("\nHit Ratio  : %.2f", (float)hits / n);
+    printf("\nMiss Ratio : %.2f\n", (float)faults / n);
 }
 
 // LRU Page Replacement
 void LRU(int pages[], int n, int frameSize)
 {
     int frames[MAX], recent[MAX];
+    int hits = 0, faults = 0;
 
     for (int i = 0; i < frameSize; i++)
     {
@@ -59,28 +63,25 @@ void LRU(int pages[], int n, int frameSize)
         recent[i] = -1;
     }
 
-    printf("\n----- LRU Page Replacement -----\n");
+    printf("\n===== LRU =====\n");
 
     for (int i = 0; i < n; i++)
     {
         int found = -1;
 
         for (int j = 0; j < frameSize; j++)
-        {
             if (frames[j] == pages[i])
-            {
                 found = j;
-                break;
-            }
-        }
 
         if (found != -1)
         {
+            hits++;
             recent[found] = i;
             printf("Page %d -> Hit\n", pages[i]);
         }
         else
         {
+            faults++;
             int pos = 0;
 
             for (int j = 1; j < frameSize; j++)
@@ -95,6 +96,11 @@ void LRU(int pages[], int n, int frameSize)
 
         displayFrames(frames, frameSize);
     }
+
+    printf("\nHits       : %d", hits);
+    printf("\nFaults     : %d", faults);
+    printf("\nHit Ratio  : %.2f", (float)hits / n);
+    printf("\nMiss Ratio : %.2f\n", (float)faults / n);
 }
 
 int main()
