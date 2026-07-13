@@ -1,0 +1,27 @@
+#include <stdio.h>
+
+int main() {
+    int pageSize, logicalAddress;
+    int pageNumber, offset;
+
+    // User enters page size
+    printf("Enter Page Size (bytes): ");
+    scanf("%d", &pageSize);
+
+    // User enters logical address
+    printf("Enter Logical Address: ");
+    scanf("%d", &logicalAddress);
+
+    // Calculate page number and offset
+    pageNumber = logicalAddress / pageSize;
+    offset = logicalAddress % pageSize;
+
+    // Display result
+    printf("\nPaging System\n");
+    printf("Page Size      : %d bytes\n", pageSize);
+    printf("Logical Address: %d\n", logicalAddress);
+    printf("Page Number    : %d\n", pageNumber);
+    printf("Offset         : %d\n", offset);
+
+    return 0;
+}
