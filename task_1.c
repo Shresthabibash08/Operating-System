@@ -2,61 +2,95 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#define NUM_THREADS 3
-#define ROUNDS 2
-
-// Shared counter accessed by all threads
 int counter = 0;
 
-// Mutex to protect the shared counter (prevents race conditions)
-pthread_mutex_t counter_lock;
+// Mutex for race condition
+pthread_mutex_t lock;
 
-// Variables used to simulate Round-Robin scheduling
-int turn = 0;
-pthread_mutex_t turn_lock;
-pthread_cond_t turn_cv;
+// Two shared resources
+pthread_mutex_t resource1;
+pthread_mutex_t resource2;
 
-// Two resources used to demonstrate deadlock prevention
-pthread_mutex_t resA, resB;
-
-// Function executed by each thread
-void *task(void *arg)
+// Thread 1
+void *threadOne(void *arg)
 {
-    int id = *(int *)arg;
+    printf("Thread 1 is running\n");
 
-    for (int r = 1; r <= ROUNDS; r++)
+    // Prevent race condition
+    pthread_mutex_lock(&lock);
+    counter++;
+    pthread_mutex_unlock(&lock);
+
+    // Lock resources in same order (prevents deadlock)
+    pthread_mutex_lock(&resource1);
+    pthread_mutex_lock(&resource2);
+
+    printf("Thread 1 is using shared resources\n");
+    sleep(1);
+
+    pthread_mutex_unlock(&resource2);
+    pthread_mutex_unlock(&resource1);
+
+    return NULL;
+}
+
+// Thread 2
+void *threadTwo(void *arg)
+{
+    printf("Thread 2 is running\n");
+
+    pthread_mutex_lock(&lock);
+    counter++;
+    pthread_mutex_unlock(&lock);
+
+    pthread_mutex_lock(&resource1);
+    pthread_mutex_lock(&resource2);
+
+    printf("Thread 2 is using shared resources\n");
+    sleep(1);
+
+    pthread_mutex_unlock(&resource2);
+    pthread_mutex_unlock(&resource1);
+
+    return NULL;
+}
+
+// Thread 3 - Round Robin Simulation
+void *threadThree(void *arg)
+{
+    int burstTime[] = {5, 7, 3};
+    int quantum = 2;
+    int finished = 0;
+
+    printf("\nRound Robin Scheduling\n");
+
+    while (finished < 3)
     {
-        // Wait until the scheduler gives this thread its turn
-        pthread_mutex_lock(&turn_lock);
-        while (turn != id)
-            pthread_cond_wait(&turn_cv, &turn_lock);
+        finished = 0;
 
-        printf("Round %d -> Thread %d is scheduled (running)\n", r, id);
+        for (int i = 0; i < 3; i++)
+        {
+            if (burstTime[i] > 0)
+            {
+                printf("Process P%d is running\n", i + 1);
 
-        // Protect the shared counter using a mutex
-        pthread_mutex_lock(&counter_lock);
-        counter++;
-        pthread_mutex_unlock(&counter_lock);
+                if (burstTime[i] > quantum)
+                {
+                    burstTime[i] -= quantum;
+                    printf("Remaining Time = %d\n", burstTime[i]);
+                }
+                else
+                {
+                    burstTime[i] = 0;
+                    printf("Process P%d completed\n", i + 1);
+                }
 
-        // Lock resources in a fixed order to prevent deadlock
-        pthread_mutex_lock(&resA);
-        pthread_mutex_lock(&resB);
+                sleep(1);
+            }
 
-        printf("           Thread %d used Resource A and Resource B safely (no deadlock)\n", id);
-
-        pthread_mutex_unlock(&resB);
-        pthread_mutex_unlock(&resA);
-
-        // Simulate a CPU time slice before the next thread runs
-        usleep(200000);
-
-        // Pass execution to the next thread (Round-Robin scheduling)
-        turn = (turn + 1) % NUM_THREADS;
-
-        // Wake up waiting threads to check whose turn is next
-        pthread_cond_broadcast(&turn_cv);
-
-        pthread_mutex_unlock(&turn_lock);
+            if (burstTime[i] == 0)
+                finished++;
+        }
     }
 
     return NULL;
@@ -64,40 +98,27 @@ void *task(void *arg)
 
 int main()
 {
-    pthread_t threads[NUM_THREADS];
-    int ids[NUM_THREADS] = {0, 1, 2};
+    pthread_t t1, t2, t3;
 
-    // Initialize mutexes and condition variable
-    pthread_mutex_init(&counter_lock, NULL);
-    pthread_mutex_init(&turn_lock, NULL);
-    pthread_cond_init(&turn_cv, NULL);
-    pthread_mutex_init(&resA, NULL);
-    pthread_mutex_init(&resB, NULL);
+    pthread_mutex_init(&lock, NULL);
+    pthread_mutex_init(&resource1, NULL);
+    pthread_mutex_init(&resource2, NULL);
 
-    // Create worker threads
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        pthread_create(&threads[i], NULL, task, &ids[i]);
-    }
+    pthread_create(&t1, NULL, threadOne, NULL);
+    pthread_create(&t2, NULL, threadTwo, NULL);
+    pthread_create(&t3, NULL, threadThree, NULL);
 
-    // Wait for all worker threads to finish
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        pthread_join(threads[i], NULL);
-    }
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    pthread_join(t3, NULL);
 
-    // Display program summary
-    printf("\nFinal Counter = %d (Expected = %d)\n", counter, NUM_THREADS * ROUNDS);
-    printf("Race condition prevented using counter_lock.\n");
-    printf("Round-Robin scheduling simulated using turn, mutex, and condition variable.\n");
-    printf("Deadlock prevented using consistent lock ordering (Resource A -> Resource B).\n");
+    printf("\nFinal Counter = %d\n", counter);
+    printf("Race condition prevented using mutex.\n");
+    printf("Deadlock prevented by locking resources in the same order.\n");
 
-    // Destroy mutexes and condition variable
-    pthread_mutex_destroy(&counter_lock);
-    pthread_mutex_destroy(&turn_lock);
-    pthread_cond_destroy(&turn_cv);
-    pthread_mutex_destroy(&resA);
-    pthread_mutex_destroy(&resB);
+    pthread_mutex_destroy(&lock);
+    pthread_mutex_destroy(&resource1);
+    pthread_mutex_destroy(&resource2);
 
     return 0;
 }
