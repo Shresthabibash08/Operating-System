@@ -1,0 +1,29 @@
+#include <stdio.h>
+
+int main()
+{
+    FILE *file;
+    char data[100];
+
+    // Create and write to a file
+    file = fopen("sample.txt", "w");
+    fprintf(file, "Hello! This is a file management program.");
+    fclose(file);
+
+    printf("File created and data written successfully.\n");
+
+    // Read the file
+    file = fopen("sample.txt", "r");
+    fgets(data, sizeof(data), file);
+    fclose(file);
+
+    printf("File Content: %s\n", data);
+
+    // Delete the file
+    if (remove("sample.txt") == 0)
+        printf("File deleted successfully.\n");
+    else
+        printf("Unable to delete file.\n");
+
+    return 0;
+}
