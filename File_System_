@@ -1,11 +1,29 @@
+
 #include <stdio.h>
+#include <string.h>
 
 int main()
 {
-    FILE *file;
+    char username[20], password[20];
     char data[100];
+    FILE *file;
 
-    // Create and write to a file
+    // User Authentication
+    printf("Username: ");
+    scanf("%19s", username);
+
+    printf("Password: ");
+    scanf("%19s", password);
+
+    if (strcmp(username, "admin") != 0 || strcmp(password, "1234") != 0)
+    {
+        printf("Invalid Username or Password.\n");
+        return 0;
+    }
+
+    printf("\nLogin Successful!\n");
+
+    // Create and write to file
     file = fopen("sample.txt", "w");
     fprintf(file, "Hello! This is a file management program.");
     fclose(file);
