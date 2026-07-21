@@ -1,19 +1,31 @@
-/* TCP Client - Authenticates then sends messages to server
-   Compile: gcc client.c -o client
-   Run    : ./client <server_ip> <port>
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 #include <arpa/inet.h>
 
 #define BUF 512
+int sock;
+
+/*  Continuously listens for messages from the server and prints them */
+void *receiveLoop(void *arg) {
+    (void)arg;
+    char buf[BUF];
+    while (1) {
+        int n = recv(sock, buf, BUF - 1, 0);
+        if (n <= 0) { printf("\n[!] Server disconnected.\n"); exit(0); }
+        buf[n] = '\0';
+        printf("\r%s> ", buf);   /* incoming message, then re-show prompt */
+        fflush(stdout);
+    }
+    return NULL;
+}
 
 int main(int argc, char *argv[]) {
     if (argc != 3) { printf("Usage: %s <server_ip> <port>\n", argv[0]); return 1; }
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) { perror("socket"); return 1; }
 
     struct sockaddr_in servAddr = {0};
@@ -22,7 +34,6 @@ int main(int argc, char *argv[]) {
     if (inet_pton(AF_INET, argv[1], &servAddr.sin_addr) <= 0) {
         printf("Invalid server address.\n"); return 1;
     }
-
     if (connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0) {
         perror("connect"); return 1;
     }
@@ -43,31 +54,29 @@ int main(int argc, char *argv[]) {
         if (strncmp(buf, "OK", 2) == 0) { printf("Login successful!\n"); break; }
         printf("Authentication failed. Try again.\n");
     }
-
-    /* ---- Messaging phase ---- */
-    printf("\nType messages to send (type QUIT to exit):\n");
     getchar(); /* clear leftover newline */
+
+    /* Start background thread to receive messages any time (from server or other clients) */
+    pthread_t tid;
+    pthread_create(&tid, NULL, receiveLoop, NULL);
+    pthread_detach(tid);
+
+    printf("\nType messages to send (type QUIT to exit):\n> ");
     while (1) {
-        printf("> ");
         fgets(buf, BUF, stdin);
         buf[strcspn(buf, "\n")] = '\0';
 
-        if (strlen(buf) == 0) { printf("Empty input, try again.\n"); continue; }
+        if (strlen(buf) == 0) { printf("> "); continue; }
 
         char msg[BUF + 10];
-        if (strcmp(buf, "QUIT") == 0)
+        if (strcmp(buf, "QUIT") == 0) {
             snprintf(msg, sizeof(msg), "QUIT");
-        else
-            snprintf(msg, sizeof(msg), "MSG %s", buf);
-
+            send(sock, msg, strlen(msg), 0);
+            break;
+        }
+        snprintf(msg, sizeof(msg), "CHAT %s", buf);
         send(sock, msg, strlen(msg), 0);
-
-        int n = recv(sock, buf, BUF - 1, 0);
-        if (n <= 0) { printf("Server disconnected.\n"); break; }
-        buf[n] = '\0';
-        printf("Server: %s", buf);
-
-        if (strncmp(buf, "BYE", 3) == 0) break;
+        printf("> ");
     }
 
     close(sock);
