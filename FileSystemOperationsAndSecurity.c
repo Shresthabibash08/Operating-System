@@ -3,11 +3,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-
 #define UNAME "admin"
-#define PASS  "admin123"
+#define PASS  "hello123"
 #define MAXP  256
-
 /* ---------- Authentication ---------- */
 int authenticate(void) {
     char user[50], pass[50];
@@ -25,7 +23,6 @@ int authenticate(void) {
     }
     return 0;
 }
-
 /* ---------- File Operations ---------- */
 void createFile(void) {
     char fname[MAXP];
@@ -37,7 +34,6 @@ void createFile(void) {
     chmod(fname, 0644); /* default permission: 644 */
     printf("File '%s' created successfully with default permission 644.\n", fname);
 }
-
 void readFile(void) {
     char fname[MAXP], ch;
     printf("Enter filename to read: ");
@@ -49,7 +45,6 @@ void readFile(void) {
     printf("\n--- End of File ---\n");
     fclose(fp);
 }
-
 void writeFile(void) {
     char fname[MAXP], data[1000];
     printf("Enter filename to write/append: ");
@@ -65,7 +60,6 @@ void writeFile(void) {
     fclose(fp);
     printf("Data written to '%s' successfully.\n", fname);
 }
-
 void deleteFile(void) {
     char fname[MAXP];
     printf("Enter filename to delete: ");
@@ -75,25 +69,26 @@ void deleteFile(void) {
     else
         perror("Error deleting file");
 }
-
 void setPermissions(void) {
     char fname[MAXP];
-    int owner, group, others;
+    int code;
     printf("Enter filename: ");
     scanf("%255s", fname);
-    printf("Enter permission digits (0-7) for Owner Group Others\n");
-    printf("(e.g. 6 4 4 => file permission 644): ");
-    scanf("%d %d %d", &owner, &group, &others);
-    if (owner < 0 || owner > 7 || group < 0 || group > 7 || others < 0 || others > 7) {
-        printf("Invalid permission values.\n"); return;
+    printf("Choose the file permission from 755, 644, 777, 600: ");
+    scanf("%d", &code);
+
+    if (code != 755 && code != 644 && code != 777 && code != 600) {
+        printf("Invalid input. Please choose only 755, 644, 777, or 600.\n");
+        return;
     }
-    mode_t mode = (owner << 6) | (group << 3) | others;
+
+    int o = code / 100, g = (code / 10) % 10, ot = code % 10;
+    mode_t mode = (o << 6) | (g << 3) | ot;
     if (chmod(fname, mode) == 0)
-        printf("Permissions of '%s' set to %d%d%d successfully.\n", fname, owner, group, others);
+        printf("Permissions of '%s' set to %d successfully.\n", fname, code);
     else
         perror("Error setting permissions");
 }
-
 /* ---------- Menu ---------- */
 void showMenu(void) {
     printf("\n===== Secure File Manager =====\n");
@@ -105,13 +100,11 @@ void showMenu(void) {
     printf("6. Exit\n");
     printf("Choose an option: ");
 }
-
 int main(void) {
     if (!authenticate()) {
         printf("Authentication failed. Exiting.\n");
         return 1;
     }
-
     int choice;
     do {
         showMenu();
@@ -126,6 +119,5 @@ int main(void) {
             default: printf("Invalid choice, try again.\n");
         }
     } while (choice != 6);
-
     return 0;
 }
