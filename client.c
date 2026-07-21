@@ -1,83 +1,75 @@
+/* TCP Client - Authenticates then sends messages to server
+   Compile: gcc client.c -o client
+   Run    : ./client <server_ip> <port>
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
-#define PORT 8080
-#define BUFFER_SIZE 1024
+#define BUF 512
 
-int main() {
-    int sock;
-    struct sockaddr_in server;
-    char buffer[BUFFER_SIZE];
-    char username[50], password[50];
+int main(int argc, char *argv[]) {
+    if (argc != 3) { printf("Usage: %s <server_ip> <port>\n", argv[0]); return 1; }
 
-    // Create socket
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        perror("Socket");
-        return 1;
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) { perror("socket"); return 1; }
+
+    struct sockaddr_in servAddr = {0};
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_port = htons(atoi(argv[2]));
+    if (inet_pton(AF_INET, argv[1], &servAddr.sin_addr) <= 0) {
+        printf("Invalid server address.\n"); return 1;
     }
 
-    // Server details
-    server.sin_family = AF_INET;
-    server.sin_port = htons(PORT);
-    server.sin_addr.s_addr = inet_addr("127.0.0.1");
-
-    // Connect to server
-    if (connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        perror("Connect");
-        close(sock);
-        return 1;
+    if (connect(sock, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0) {
+        perror("connect"); return 1;
     }
+    printf("Connected to server %s:%s\n", argv[1], argv[2]);
 
-    printf("Connected to Server\n");
+    char buf[BUF], user[50], pass[50];
 
-    // Login
-    printf("Username: ");
-    scanf("%49s", username);
-
-    printf("Password: ");
-    scanf("%49s", password);
-
-    sprintf(buffer, "%s %s", username, password);
-    send(sock, buffer, strlen(buffer), 0);
-
-    memset(buffer, 0, sizeof(buffer));
-    recv(sock, buffer, sizeof(buffer), 0);
-
-    printf("Server: %s\n", buffer);
-
-    if (strcmp(buffer, "AUTH SUCCESS") != 0) {
-        close(sock);
-        return 0;
-    }
-
-    getchar(); // Remove newline after scanf
-
+    /* ---- Authentication phase ---- */
     while (1) {
-        printf("\nEnter Message (type 'exit' to quit): ");
-        fgets(buffer, sizeof(buffer), stdin);
+        printf("Username: "); scanf("%49s", user);
+        printf("Password: "); scanf("%49s", pass);
+        snprintf(buf, BUF, "AUTH %s %s", user, pass);
+        send(sock, buf, strlen(buf), 0);
 
-        buffer[strcspn(buffer, "\n")] = '\0';
+        int n = recv(sock, buf, BUF - 1, 0);
+        if (n <= 0) { printf("Server closed connection.\n"); close(sock); return 1; }
+        buf[n] = '\0';
+        if (strncmp(buf, "OK", 2) == 0) { printf("Login successful!\n"); break; }
+        printf("Authentication failed. Try again.\n");
+    }
 
-        send(sock, buffer, strlen(buffer), 0);
+    /* ---- Messaging phase ---- */
+    printf("\nType messages to send (type QUIT to exit):\n");
+    getchar(); /* clear leftover newline */
+    while (1) {
+        printf("> ");
+        fgets(buf, BUF, stdin);
+        buf[strcspn(buf, "\n")] = '\0';
 
-        if (strcmp(buffer, "exit") == 0)
-            break;
+        if (strlen(buf) == 0) { printf("Empty input, try again.\n"); continue; }
 
-        memset(buffer, 0, sizeof(buffer));
+        char msg[BUF + 10];
+        if (strcmp(buf, "QUIT") == 0)
+            snprintf(msg, sizeof(msg), "QUIT");
+        else
+            snprintf(msg, sizeof(msg), "MSG %s", buf);
 
-        if (recv(sock, buffer, sizeof(buffer), 0) <= 0) {
-            printf("Server disconnected.\n");
-            break;
-        }
+        send(sock, msg, strlen(msg), 0);
 
-        printf("Server: %s\n", buffer);
+        int n = recv(sock, buf, BUF - 1, 0);
+        if (n <= 0) { printf("Server disconnected.\n"); break; }
+        buf[n] = '\0';
+        printf("Server: %s", buf);
+
+        if (strncmp(buf, "BYE", 3) == 0) break;
     }
 
     close(sock);
-
     return 0;
 }
