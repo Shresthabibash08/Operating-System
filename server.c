@@ -1,10 +1,3 @@
-/* Multi-Client TCP Server with Authentication
-   Protocol: AUTH <user> <pass>  -> "OK" / "FAIL"
-             MSG <text>          -> server echoes "ECHO: <text>"
-             QUIT                -> closes connection
-   Compile: gcc server.c -o server -lpthread
-   Run    : ./server 8080
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +6,30 @@
 #include <arpa/inet.h>
 
 #define BUF 512
+#define MAXC 50
 #define UNAME "admin"
 #define PASS  "admin123"
+
+int clients[MAXC], nclients = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+void addClient(int s) {
+    pthread_mutex_lock(&lock);
+    if (nclients < MAXC) clients[nclients++] = s;
+    pthread_mutex_unlock(&lock);
+}
+void removeClient(int s) {
+    pthread_mutex_lock(&lock);
+    for (int i = 0; i < nclients; i++)
+        if (clients[i] == s) { clients[i] = clients[--nclients]; break; }
+    pthread_mutex_unlock(&lock);
+}
+void broadcast(const char *msg, int excludeSock) {
+    pthread_mutex_lock(&lock);
+    for (int i = 0; i < nclients; i++)
+        if (clients[i] != excludeSock) send(clients[i], msg, strlen(msg), 0);
+    pthread_mutex_unlock(&lock);
+}
 
 void *handleClient(void *arg) {
     int sock = *(int *)arg;
@@ -22,7 +37,6 @@ void *handleClient(void *arg) {
     char buf[BUF], user[50], pass[50];
     int authenticated = 0;
 
-    /* ---- Authentication phase ---- */
     while (!authenticated) {
         int n = recv(sock, buf, BUF - 1, 0);
         if (n <= 0) { close(sock); return NULL; }
@@ -31,31 +45,43 @@ void *handleClient(void *arg) {
             strcmp(user, UNAME) == 0 && strcmp(pass, PASS) == 0) {
             send(sock, "OK\n", 3, 0);
             authenticated = 1;
-        } else {
-            send(sock, "FAIL\n", 5, 0);
-        }
+        } else send(sock, "FAIL\n", 5, 0);
     }
-    printf("[+] Client authenticated (socket %d)\n", sock);
+    addClient(sock);
+    printf("[+] Client %d authenticated and connected.\n", sock);
 
-    /* ---- Message exchange phase ---- */
     while (1) {
         int n = recv(sock, buf, BUF - 1, 0);
-        if (n <= 0) { printf("[-] Client disconnected (socket %d)\n", sock); break; }
+        if (n <= 0) { printf("[-] Client %d disconnected.\n", sock); break; }
         buf[n] = '\0';
-        buf[strcspn(buf, "\r\n")] = '\0'; /* strip newline */
+        buf[strcspn(buf, "\r\n")] = '\0';
 
         if (strncmp(buf, "QUIT", 4) == 0) {
             send(sock, "BYE\n", 4, 0);
             break;
-        } else if (strncmp(buf, "MSG ", 4) == 0 && strlen(buf) > 4 && strlen(buf) < BUF) {
-            char reply[BUF + 10];
-            snprintf(reply, sizeof(reply), "ECHO: %s\n", buf + 4);
-            send(sock, reply, strlen(reply), 0);
+        } else if (strncmp(buf, "CHAT ", 5) == 0 && strlen(buf) > 5 && strlen(buf) < BUF) {
+            printf("Client %d: %s\n", sock, buf + 5);   /* shown on SERVER terminal */
+            fflush(stdout);
         } else {
             send(sock, "ERR: invalid or empty command\n", 31, 0);
         }
     }
+    removeClient(sock);
     close(sock);
+    return NULL;
+}
+
+/* Reads server operator's input and broadcasts it to all connected clients */
+void *serverInputLoop(void *arg) {
+    (void)arg;
+    char line[BUF];
+    while (fgets(line, BUF, stdin)) {
+        line[strcspn(line, "\n")] = '\0';
+        if (strlen(line) == 0) continue;
+        char msg[BUF + 20];
+        snprintf(msg, sizeof(msg), "Server: %s\n", line);
+        broadcast(msg, -1);
+    }
     return NULL;
 }
 
@@ -74,11 +100,14 @@ int main(int argc, char *argv[]) {
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(port);
 
-    if (bind(serverSock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
-        perror("bind"); return 1;
-    }
+    if (bind(serverSock, (struct sockaddr *)&addr, sizeof(addr)) < 0) { perror("bind"); return 1; }
     if (listen(serverSock, 10) < 0) { perror("listen"); return 1; }
     printf("Server listening on port %d...\n", port);
+    printf("Type a message anytime and press Enter to broadcast it to all clients.\n");
+
+    pthread_t inputTid;
+    pthread_create(&inputTid, NULL, serverInputLoop, NULL);
+    pthread_detach(inputTid);
 
     while (1) {
         int *clientSock = malloc(sizeof(int));
@@ -87,7 +116,7 @@ int main(int argc, char *argv[]) {
 
         pthread_t tid;
         pthread_create(&tid, NULL, handleClient, clientSock);
-        pthread_detach(tid); /* auto-cleanup thread resources */
+        pthread_detach(tid);
     }
 
     close(serverSock);

@@ -1,7 +1,5 @@
 #include <stdio.h>
 
-#define MAX 20
-
 // Display current memory frames
 void displayFrames(int frames[], int frameSize)
 {
@@ -16,23 +14,21 @@ void displayFrames(int frames[], int frameSize)
     printf("\n");
 }
 
-// FIFO Page Replacement Algorithm
+// FIFO Page Replacement
 void FIFO(int pages[], int n, int frameSize)
 {
-    int frames[MAX], front = 0;
-    int hits = 0, faults = 0;
+    int frames[frameSize];
+    int front = 0, hits = 0, faults = 0;
 
-    // Initialize empty frames
     for (int i = 0; i < frameSize; i++)
         frames[i] = -1;
 
-    printf("\n========== FIFO ==========\n");
+    printf("\n===== FIFO =====\n");
 
     for (int i = 0; i < n; i++)
     {
         int found = 0;
 
-        // Check if page is already in memory
         for (int j = 0; j < frameSize; j++)
         {
             if (frames[j] == pages[i])
@@ -58,33 +54,30 @@ void FIFO(int pages[], int n, int frameSize)
         displayFrames(frames, frameSize);
     }
 
-    printf("\nFIFO Results\n");
-    printf("Hits       : %d\n", hits);
+    printf("\nHits       : %d\n", hits);
     printf("Faults     : %d\n", faults);
     printf("Hit Ratio  : %.2f\n", (float)hits / n);
     printf("Miss Ratio : %.2f\n", (float)faults / n);
 }
 
-// LRU Page Replacement Algorithm
+// LRU Page Replacement
 void LRU(int pages[], int n, int frameSize)
 {
-    int frames[MAX], recent[MAX];
+    int frames[frameSize], recent[frameSize];
     int hits = 0, faults = 0;
 
-    // Initialize empty frames
     for (int i = 0; i < frameSize; i++)
     {
         frames[i] = -1;
         recent[i] = -1;
     }
 
-    printf("\n========== LRU ==========\n");
+    printf("\n===== LRU =====\n");
 
     for (int i = 0; i < n; i++)
     {
         int found = -1;
 
-        // Check if page is already in memory
         for (int j = 0; j < frameSize; j++)
         {
             if (frames[j] == pages[i])
@@ -103,15 +96,11 @@ void LRU(int pages[], int n, int frameSize)
         else
         {
             faults++;
-
             int pos = 0;
 
-            // Find least recently used page
             for (int j = 1; j < frameSize; j++)
-            {
                 if (recent[j] < recent[pos])
                     pos = j;
-            }
 
             frames[pos] = pages[i];
             recent[pos] = i;
@@ -122,8 +111,7 @@ void LRU(int pages[], int n, int frameSize)
         displayFrames(frames, frameSize);
     }
 
-    printf("\nLRU Results\n");
-    printf("Hits       : %d\n", hits);
+    printf("\nHits       : %d\n", hits);
     printf("Faults     : %d\n", faults);
     printf("Hit Ratio  : %.2f\n", (float)hits / n);
     printf("Miss Ratio : %.2f\n", (float)faults / n);
@@ -131,37 +119,24 @@ void LRU(int pages[], int n, int frameSize)
 
 int main()
 {
-    int pageSize, logicalAddress;
-    int pageNumber, offset;
+    int pageSize, frameSize, n;
 
     printf("Enter Page Size (bytes): ");
     scanf("%d", &pageSize);
 
-    printf("Enter Logical Address: ");
-    scanf("%d", &logicalAddress);
-
-    // Calculate page number and offset
-    pageNumber = logicalAddress / pageSize;
-    offset = logicalAddress % pageSize;
-
-    printf("\n===== Paging System =====\n");
-    printf("Page Size       : %d bytes\n", pageSize);
-    printf("Logical Address : %d\n", logicalAddress);
-    printf("Page Number     : %d\n", pageNumber);
-    printf("Offset          : %d\n", offset);
-
-    int frameSize, n;
-    int pages[MAX];
-
-    printf("\nEnter Number of Frames: ");
+    printf("Enter Number of Frames: ");
     scanf("%d", &frameSize);
 
     printf("Enter Number of Page References: ");
     scanf("%d", &n);
 
+    int pages[n];
+
     printf("Enter Page Reference String:\n");
     for (int i = 0; i < n; i++)
         scanf("%d", &pages[i]);
+
+    printf("\nPage Size: %d bytes\n", pageSize);
 
     FIFO(pages, n, frameSize);
     LRU(pages, n, frameSize);
