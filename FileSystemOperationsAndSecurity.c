@@ -3,10 +3,14 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
+
 #define UNAME "admin"
 #define PASS  "hello123"
-#define MAXP  256
+#define MAXP  256   /* Max filename length */
+
 /* ---------- Authentication ---------- */
+/* Prompts for username/password, allowing up to 3 attempts.
+ * Returns 1 on success, 0 if all attempts fail. */
 int authenticate(void) {
     char user[50], pass[50];
     int tries = 3;
@@ -23,7 +27,9 @@ int authenticate(void) {
     }
     return 0;
 }
+
 /* ---------- File Operations ---------- */
+/* Creates an empty file and sets its permissions to 644. */
 void createFile(void) {
     char fname[MAXP];
     printf("Enter filename to create: ");
@@ -34,6 +40,8 @@ void createFile(void) {
     chmod(fname, 0644); /* default permission: 644 */
     printf("File '%s' created successfully with default permission 644.\n", fname);
 }
+
+/* Reads a file and prints its contents to stdout. */
 void readFile(void) {
     char fname[MAXP], ch;
     printf("Enter filename to read: ");
@@ -45,6 +53,8 @@ void readFile(void) {
     printf("\n--- End of File ---\n");
     fclose(fp);
 }
+
+/* Writes or appends a single line of text to a file. */
 void writeFile(void) {
     char fname[MAXP], data[1000];
     printf("Enter filename to write/append: ");
@@ -54,12 +64,14 @@ void writeFile(void) {
     FILE *fp = fopen(fname, mode[0] == 'a' ? "a" : "w");
     if (!fp) { perror("Error opening file (check permissions)"); return; }
     printf("Enter text (single line): ");
-    getchar();
+    getchar(); /* consume leftover newline from previous scanf */
     fgets(data, sizeof(data), stdin);
     fputs(data, fp);
     fclose(fp);
     printf("Data written to '%s' successfully.\n", fname);
 }
+
+/* Deletes the specified file. */
 void deleteFile(void) {
     char fname[MAXP];
     printf("Enter filename to delete: ");
@@ -69,6 +81,8 @@ void deleteFile(void) {
     else
         perror("Error deleting file");
 }
+
+/* Sets a file's permissions to one of a fixed set of modes (755, 644, 777, 600). */
 void setPermissions(void) {
     char fname[MAXP];
     int code;
@@ -82,6 +96,7 @@ void setPermissions(void) {
         return;
     }
 
+    /* Convert decimal code (e.g. 755) into octal permission bits */
     int o = code / 100, g = (code / 10) % 10, ot = code % 10;
     mode_t mode = (o << 6) | (g << 3) | ot;
     if (chmod(fname, mode) == 0)
@@ -89,6 +104,7 @@ void setPermissions(void) {
     else
         perror("Error setting permissions");
 }
+
 /* ---------- Menu ---------- */
 void showMenu(void) {
     printf("\n===== Secure File Manager =====\n");
@@ -100,6 +116,7 @@ void showMenu(void) {
     printf("6. Exit\n");
     printf("Choose an option: ");
 }
+
 int main(void) {
     if (!authenticate()) {
         printf("Authentication failed. Exiting.\n");
