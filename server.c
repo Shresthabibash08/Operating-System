@@ -113,16 +113,17 @@ void *handleClient(void *arg) {
         }
 
         // Valid chat message
-        else if (strncmp(buf, "CHAT ", 5) == 0 &&
-                 strlen(buf) > 5 &&
-                 strlen(buf) < BUF) {
+        else if (strncmp(buf, "CHAT ", 5) == 0 && strlen(buf) > 5) {
 
-            printf("Client %d: %s\n", sock, buf + 5);
+    char message[BUF];
 
-            fflush(stdout);
+    snprintf(message, sizeof(message),
+             "Client %d: %s\n", sock, buf + 5);
 
-        }
+    printf("%s", message);
 
+    broadcast(message, sock);      // Broadcast to all other clients
+}
         // Invalid command
         else {
 

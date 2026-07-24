@@ -28,7 +28,9 @@ void *receiveLoop(void *arg) {
         buf[n] = '\0';
 
         // Display received message
-        printf("\r%s> ", buf);
+        printf("\n%s", buf);
+printf("> ");
+fflush(stdout);
 
         fflush(stdout);
     }
@@ -173,4 +175,4 @@ int main(int argc, char *argv[]) {
     close(sock);
 
     return 0;
-}
+} 
