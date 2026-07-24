@@ -1,140 +1,309 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/stat.h>
 
-#define UNAME "admin"
-#define PASS  "hello123"
-#define MAXP  256   /* Max filename length */
+// Default login credentials
+#define USER "admin"
+#define PASS "hello123"
 
-/* ---------- Authentication ---------- */
-/* Prompts for username/password, allowing up to 3 attempts.
- * Returns 1 on success, 0 if all attempts fail. */
-int authenticate(void) {
-    char user[50], pass[50];
-    int tries = 3;
-    while (tries--) {
+// Maximum filename length
+#define MAX 256
+
+// Records every file operation into audit.log
+void logAction(const char *action, const char *file) {
+    FILE *log = fopen("audit.log", "a");
+    if (log) {
+        fprintf(log, "%s : %s\n", action, file);
+        fclose(log);
+    }
+}
+
+// Reads filename from the user
+void getFilename(char *buffer) {
+    printf("Enter filename: ");
+    scanf("%255s", buffer);
+}
+
+// User authentication (3 attempts)
+int authenticate() {
+    char user[30], pass[30];
+
+    for (int i = 3; i > 0; i--) {
+
         printf("Username: ");
-        scanf("%49s", user);
+        scanf("%29s", user);
+
         printf("Password: ");
-        scanf("%49s", pass);
-        if (strcmp(user, UNAME) == 0 && strcmp(pass, PASS) == 0) {
-            printf("\nLogin successful! Welcome, %s.\n\n", user);
+        scanf("%29s", pass);
+
+        if (strcmp(user, USER) == 0 && strcmp(pass, PASS) == 0) {
+            printf("\nLogin Successful!\n");
             return 1;
         }
-        printf("Invalid credentials. %d attempt(s) left.\n\n", tries);
+
+        printf("Invalid Login! Attempts Left: %d\n", i - 1);
     }
+
     return 0;
 }
 
-/* ---------- File Operations ---------- */
-/* Creates an empty file and sets its permissions to 644. */
-void createFile(void) {
-    char fname[MAXP];
-    printf("Enter filename to create: ");
-    scanf("%255s", fname);
-    FILE *fp = fopen(fname, "w");
-    if (!fp) { perror("Error creating file"); return; }
-    fclose(fp);
-    chmod(fname, 0644); /* default permission: 644 */
-    printf("File '%s' created successfully with default permission 644.\n", fname);
-}
+// Creates a new file
+void createFile() {
 
-/* Reads a file and prints its contents to stdout. */
-void readFile(void) {
-    char fname[MAXP], ch;
-    printf("Enter filename to read: ");
-    scanf("%255s", fname);
-    FILE *fp = fopen(fname, "r");
-    if (!fp) { perror("Error opening file (check permissions)"); return; }
-    printf("\n--- File Content ---\n");
-    while ((ch = fgetc(fp)) != EOF) putchar(ch);
-    printf("\n--- End of File ---\n");
-    fclose(fp);
-}
+    char file[MAX];
 
-/* Writes or appends a single line of text to a file. */
-void writeFile(void) {
-    char fname[MAXP], data[1000];
-    printf("Enter filename to write/append: ");
-    scanf("%255s", fname);
-    printf("Append (a) or Overwrite (w)? ");
-    char mode[2]; scanf("%1s", mode);
-    FILE *fp = fopen(fname, mode[0] == 'a' ? "a" : "w");
-    if (!fp) { perror("Error opening file (check permissions)"); return; }
-    printf("Enter text (single line): ");
-    getchar(); /* consume leftover newline from previous scanf */
-    fgets(data, sizeof(data), stdin);
-    fputs(data, fp);
-    fclose(fp);
-    printf("Data written to '%s' successfully.\n", fname);
-}
+    getFilename(file);
 
-/* Deletes the specified file. */
-void deleteFile(void) {
-    char fname[MAXP];
-    printf("Enter filename to delete: ");
-    scanf("%255s", fname);
-    if (remove(fname) == 0)
-        printf("File '%s' deleted successfully.\n", fname);
-    else
-        perror("Error deleting file");
-}
+    FILE *fp = fopen(file, "w");
 
-/* Sets a file's permissions to one of a fixed set of modes (755, 644, 777, 600). */
-void setPermissions(void) {
-    char fname[MAXP];
-    int code;
-    printf("Enter filename: ");
-    scanf("%255s", fname);
-    printf("Choose the file permission from 755, 644, 777, 600: ");
-    scanf("%d", &code);
-
-    if (code != 755 && code != 644 && code != 777 && code != 600) {
-        printf("Invalid input. Please choose only 755, 644, 777, or 600.\n");
+    if (!fp) {
+        perror("Error");
         return;
     }
 
-    /* Convert decimal code (e.g. 755) into octal permission bits */
-    int o = code / 100, g = (code / 10) % 10, ot = code % 10;
-    mode_t mode = (o << 6) | (g << 3) | ot;
-    if (chmod(fname, mode) == 0)
-        printf("Permissions of '%s' set to %d successfully.\n", fname, code);
-    else
-        perror("Error setting permissions");
+    fclose(fp);
+
+    // Default permission
+    chmod(file, 0644);
+
+    logAction("Created", file);
+
+    printf("File created successfully.\n");
 }
 
-/* ---------- Menu ---------- */
-void showMenu(void) {
-    printf("\n===== Secure File Manager =====\n");
-    printf("1. Create File\n");
-    printf("2. Read File\n");
-    printf("3. Write/Append File\n");
-    printf("4. Delete File\n");
-    printf("5. Set Permissions\n");
-    printf("6. Exit\n");
-    printf("Choose an option: ");
-}
+// Reads file contents
+void readFile() {
 
-int main(void) {
-    if (!authenticate()) {
-        printf("Authentication failed. Exiting.\n");
-        return 1;
+    char file[MAX];
+    int ch;
+
+    getFilename(file);
+
+    FILE *fp = fopen(file, "r");
+
+    if (!fp) {
+        perror("Error");
+        return;
     }
+
+    printf("\n----- File Content -----\n");
+
+    while ((ch = fgetc(fp)) != EOF)
+        putchar(ch);
+
+    printf("\n------------------------\n");
+
+    fclose(fp);
+
+    logAction("Read", file);
+}
+
+// Appends data into an existing file
+void writeFile() {
+
+    char file[MAX], text[500];
+
+    getFilename(file);
+
+    while (getchar() != '\n');
+
+    FILE *fp = fopen(file, "a");
+
+    if (!fp) {
+        perror("Error");
+        return;
+    }
+
+    printf("Enter text: ");
+
+    if (fgets(text, sizeof(text), stdin))
+        fputs(text, fp);
+
+    fclose(fp);
+
+    logAction("Written", file);
+
+    printf("Data written successfully.\n");
+}
+
+// Deletes a file
+void deleteFile() {
+
+    char file[MAX];
+
+    getFilename(file);
+
+    if (remove(file) == 0) {
+
+        logAction("Deleted", file);
+
+        printf("File deleted successfully.\n");
+
+    } else
+
+        perror("Error");
+}
+
+// Changes Linux file permission using chmod()
+void setPermission() {
+
+    char file[MAX];
+    mode_t perm;
     int choice;
+
+    getFilename(file);
+
+    printf("\n1. 777 (All)\n");
+    printf("2. 755 (Owner Full Access)\n");
+    printf("3. 644 (Owner Read/Write)\n");
+    printf("4. 600 (Owner Only)\n");
+    printf("5. Custom Permission\n");
+
+    printf("Choice: ");
+
+    if (scanf("%d", &choice) != 1)
+        return;
+
+    switch (choice) {
+
+        case 1:
+            perm = 0777;
+            break;
+
+        case 2:
+            perm = 0755;
+            break;
+
+        case 3:
+            perm = 0644;
+            break;
+
+        case 4:
+            perm = 0600;
+            break;
+
+        case 5:
+            printf("Enter permission (Example:755): ");
+            scanf("%o", &perm);
+            break;
+
+        default:
+            printf("Invalid Choice!\n");
+            return;
+    }
+
+    if (chmod(file, perm) == 0) {
+
+        logAction("Permission Changed", file);
+
+        printf("Permission updated successfully.\n");
+
+    } else
+
+        perror("Error");
+}
+
+// XOR encryption/decryption
+// Running twice restores the original file
+void xorFile() {
+
+    char file[MAX];
+    int ch;
+
+    getFilename(file);
+
+    FILE *fp = fopen(file, "rb+");
+
+    if (!fp) {
+        perror("Error");
+        return;
+    }
+
+    while ((ch = fgetc(fp)) != EOF) {
+
+        fseek(fp, -1, SEEK_CUR);
+
+        fputc(ch ^ 'K', fp);
+
+        fflush(fp);
+    }
+
+    fclose(fp);
+
+    logAction("Encrypted/Decrypted", file);
+
+    printf("Operation completed successfully.\n");
+}
+
+// Main program
+int main() {
+
+    int choice;
+
+    if (!authenticate()) {
+
+        printf("Authentication Failed!\n");
+
+        return 0;
+    }
+
     do {
-        showMenu();
-        scanf("%d", &choice);
-        switch (choice) {
-            case 1: createFile(); break;
-            case 2: readFile(); break;
-            case 3: writeFile(); break;
-            case 4: deleteFile(); break;
-            case 5: setPermissions(); break;
-            case 6: printf("Exiting. Goodbye!\n"); break;
-            default: printf("Invalid choice, try again.\n");
+
+        printf("\n========== Secure File Manager ==========\n");
+        printf("1. Create File\n");
+        printf("2. Read File\n");
+        printf("3. Write File\n");
+        printf("4. Delete File\n");
+        printf("5. Set Permission\n");
+        printf("6. Encrypt File\n");
+        printf("7. Decrypt File\n");
+        printf("8. Exit\n");
+        printf("Choice: ");
+
+        if (scanf("%d", &choice) != 1) {
+
+            while (getchar() != '\n');
+
+            continue;
         }
-    } while (choice != 6);
+
+        switch (choice) {
+
+            case 1:
+                createFile();
+                break;
+
+            case 2:
+                readFile();
+                break;
+
+            case 3:
+                writeFile();
+                break;
+
+            case 4:
+                deleteFile();
+                break;
+
+            case 5:
+                setPermission();
+                break;
+
+            case 6:
+            case 7:
+                xorFile();
+                break;
+
+            case 8:
+                printf("Thank You!\n");
+                break;
+
+            default:
+                printf("Invalid Choice!\n");
+        }
+
+    } while (choice != 8);
+
     return 0;
 }
